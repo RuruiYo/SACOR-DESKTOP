@@ -325,6 +325,8 @@ String? _valorDetalle(Cotizacion c, String clave) {
   return null;
 }
 
+const _serviciosConDestino = {'acarreo de materiales', 'especifico', 'específico'};
+
 const _frecuencias = [
   ('Unica', 'Todos en la misma fecha'),
   ('Diaria', 'Diaria'),
@@ -343,6 +345,18 @@ Future<void> generarViajesCotizacion(BuildContext context, Cotizacion cotizacion
   final fechaWeb = DateTime.tryParse(_valorDetalle(cotizacion, 'inicio') ?? _valorDetalle(cotizacion, 'fecha estimada') ?? '');
   final manana = DateTime.now().add(const Duration(days: 1));
   final cantidad = int.tryParse(_valorDetalle(cotizacion, 'viajes') ?? '') ?? 1;
+  final lugarWeb = _valorDetalle(cotizacion, 'recoleccion');
+  final conDestino = _serviciosConDestino.contains((cotizacion.tipoServicio ?? '').trim().toLowerCase());
+  final materiales = (_valorDetalle(cotizacion, 'materiales') ?? '')
+      .split(',')
+      .map((m) => m.trim())
+      .where((m) => m.isNotEmpty)
+      .toSet()
+      .toList();
+  final sinMateriales = materiales.isEmpty;
+  final tiposConocidos = {for (final p in almacen.precios) p.tipo}.toList()..sort();
+  Dinero? precioActual(String material) =>
+      almacen.precios.where((p) => p.tipo == material && p.lugar == lugarWeb).firstOrNull?.precio;
 
   Map<String, Object?> resultado = const {};
 
@@ -356,21 +370,23 @@ Future<void> generarViajesCotizacion(BuildContext context, Cotizacion cotizacion
       'cantidad': cantidad.clamp(1, 200),
       'inicio': fechaWeb == null ? DateTime(manana.year, manana.month, manana.day) : DateTime(fechaWeb.year, fechaWeb.month, fechaWeb.day),
       'frecuencia': frecuencia,
-      'lugar': _valorDetalle(cotizacion, 'recoleccion'),
-      'destino': _valorDetalle(cotizacion, 'destino'),
+      'lugar': lugarWeb,
+      'destino': conDestino ? _valorDetalle(cotizacion, 'destino') : null,
+      for (var i = 0; i < materiales.length; i++) 'precio_$i': precioActual(materiales[i]),
     },
     campos: [
       const CampoNumero('cantidad', 'Cantidad de viajes', minimo: 1, maximo: 200),
       const CampoFecha('inicio', 'Fecha del primer viaje'),
       const CampoOpciones<String>('frecuencia', 'Frecuencia', _frecuencias),
-      const CampoDinero(
-        'precio',
-        'Precio',
-        permitirCero: true,
-        ayuda: 'Se guarda en "Precios por tonelada" para este servicio y lugar. Si ya existe, se usa el existente.',
-      ),
       const CampoTexto('lugar', 'Lugar de recolección', largo: 120),
-      const CampoTexto('destino', 'Destino', obligatorio: false, largo: 70),
+      if (conDestino) const CampoTexto('destino', 'Destino', obligatorio: false, largo: 70),
+      if (sinMateriales) ...[
+        CampoTexto('material_0', 'Material', largo: 60, sugerencias: tiposConocidos,
+            ayuda: 'La solicitud no indicó materiales.'),
+        const CampoDinero('precio_0', 'Precio por tonelada'),
+      ] else
+        for (var i = 0; i < materiales.length; i++)
+          CampoDinero('precio_$i', 'Precio por tonelada · ${materiales[i]}'),
     ],
     alGuardar: (v) async {
       final inicio = v['inicio']! as DateTime;
@@ -378,20 +394,25 @@ Future<void> generarViajesCotizacion(BuildContext context, Cotizacion cotizacion
         'cantidad': v['cantidad'],
         'fechaInicio': Formatos.fechaIso(inicio),
         'frecuencia': v['frecuencia'],
-        'precio': (v['precio']! as Dinero).toJson(),
+        'precios': [
+          for (var i = 0; i < (sinMateriales ? 1 : materiales.length); i++)
+            {
+              'tipo': sinMateriales ? v['material_0'] : materiales[i],
+              'precio': (v['precio_$i']! as Dinero).toJson(),
+            },
+        ],
         'lugar': v['lugar'],
-        'destino': v['destino'],
+        'destino': conDestino ? v['destino'] : null,
       });
     },
   );
 
   if (!guardado || !context.mounted) return;
 
-  final precioExistente = resultado['precioExistente'] == true;
   notificar(
     context,
     '${resultado['mensaje'] ?? 'Viajes generados.'}'
-    '${precioExistente ? ' Se usó el precio que ya existía para ese servicio y lugar.' : ''}'
+    ' Los precios por tonelada quedaron guardados para ${materiales.isEmpty ? 'el material' : materiales.join(', ')}.'
     ' El administrador técnico ya puede asignar el personal desde el móvil.',
   );
 }

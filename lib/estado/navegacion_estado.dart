@@ -8,7 +8,7 @@ enum Seccion {
   clientes('Clientes y contratos', 'Clientes, contratos y precios', Icons.storefront_outlined, Icons.storefront,
       'Registros'),
   serviciosExternos('Servicios externos', 'Servicios externos', Icons.delete_outline, Icons.delete, 'Registros'),
-  salidas('Salidas y camiones', 'Salidas, gasolina y camiones', Icons.local_shipping_outlined, Icons.local_shipping,
+  salidas('Salidas y camiones', 'Salidas y camiones', Icons.local_shipping_outlined, Icons.local_shipping,
       'Registros'),
   viajesExtra('Viajes extra', 'Viajes extra', Icons.alt_route_outlined, Icons.alt_route, 'Registros'),
   solicitudesWeb('Solicitudes web', 'Cotizaciones y postulaciones de la web', Icons.language_outlined, Icons.language,

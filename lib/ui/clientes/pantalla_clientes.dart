@@ -135,39 +135,30 @@ class _ClientesState extends State<_Clientes> {
     final guardado = await mostrarFormulario(
       context,
       titulo: cliente == null ? 'Nuevo cliente' : 'Editar cliente',
-      subtitulo: 'Persona natural: DUI obligatorio. Empresa (jurídico): NIT obligatorio.',
+      subtitulo: 'Los mismos datos de contacto que pide el sitio web.',
       iniciales: {
         'nombre': cliente?.nombre,
-        'tipo': cliente?.tipo ?? 'Juridico',
-        'nombreComercial': cliente?.nombreComercial,
-        'nit': cliente?.nit,
         'dui': cliente?.dui,
-        'nrc': cliente?.nrc,
-        'giro': cliente?.giro,
-        'telefono': cliente?.telefono,
         'correo': cliente?.correo,
-        'direccion': cliente?.direccion,
+        'telefono': cliente?.telefono,
       },
       campos: [
-        const CampoTexto('nombre', 'Nombre o razón social', ancho: Ancho.completo),
-        CampoOpciones<String>('tipo', 'Tipo', [for (final t in Cliente.tipos) (t, conTildes(t))]),
-        const CampoTexto('nombreComercial', 'Nombre comercial', obligatorio: false),
-        const CampoTexto('nit', 'NIT', obligatorio: false, largo: 20),
-        const CampoTexto('dui', 'DUI', obligatorio: false, largo: 10, validar: Validar.dui),
-        const CampoTexto('nrc', 'NRC', obligatorio: false, largo: 30),
-        const CampoTexto('giro', 'Giro', obligatorio: false),
-        const CampoTexto('telefono', 'Teléfono', obligatorio: false, largo: 25, validar: Validar.telefono),
-        const CampoTexto('correo', 'Correo', obligatorio: false, largo: 254, validar: Validar.correo),
-        const CampoTexto('direccion', 'Dirección', obligatorio: false, largo: 250, ancho: Ancho.completo),
+        const CampoTexto('nombre', 'Nombre completo / Empresa o institución', ancho: Ancho.completo),
+        const CampoTexto('dui', 'DUI', largo: 10, validar: Validar.dui),
+        const CampoTexto('correo', 'Correo electrónico', obligatorio: false, largo: 254, validar: Validar.correo),
+        const CampoTexto('telefono', 'Teléfono / WhatsApp', largo: 25, validar: Validar.telefono),
       ],
       alGuardar: (v) async {
-        if (v['tipo'] == 'Natural' && v['dui'] == null) {
-          throw const FormatException('Un cliente natural requiere DUI con formato 00000000-0.');
+        final dui = v['dui']! as String;
+        if (almacen.clientes.any((c) => c.dui == dui && c.id != cliente?.id)) {
+          throw const FormatException('Ya existe un cliente con ese DUI.');
         }
-        if (v['tipo'] == 'Juridico' && v['nit'] == null) throw const FormatException('Un cliente jurídico requiere NIT.');
         final datos = {
-          for (final clave in ['nombre', 'tipo', 'nombreComercial', 'nit', 'dui', 'nrc', 'giro', 'telefono', 'correo', 'direccion'])
-            clave: v[clave],
+          'nombre': v['nombre'],
+          'dui': dui,
+          'correo': v['correo'],
+          'telefono': v['telefono'],
+          if (cliente == null) 'tipo': 'Natural',
         };
         if (cliente == null) {
           await almacen.crear(Recurso.clientes, {...datos, 'idAdministradorRegistro': usuario.id},
@@ -204,7 +195,7 @@ class _Contratos extends StatelessWidget {
       subtitulo: 'Lo que se le cobra a cada cliente por tonelada en cada plaza. El cuadro de pesaje usa estos contratos.',
       acciones: [
         FilledButton.icon(
-          onPressed: () => formularioContrato(context, null),
+          onPressed: () => nuevoContrato(context),
           icon: const Icon(Icons.add, size: 18),
           label: const Text('Nuevo contrato'),
         ),
@@ -258,6 +249,136 @@ class _Contratos extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+const _servicios = ['Acarreo de materiales', 'Recoleccion de desechos', 'Reciclaje', 'Especifico'];
+const _serviciosConDestino = {'Acarreo de materiales', 'Especifico'};
+String _etiquetaServicio(String servicio) => switch (servicio) {
+      'Recoleccion de desechos' => 'Recolección de desechos',
+      'Especifico' => 'Específico',
+      _ => servicio,
+    };
+
+const _frecuencias = ['Diaria', 'Semanal', 'Quincenal', 'Mensual', 'A demanda'];
+
+int? _estimarViajes(int meses, String frecuencia) => switch (frecuencia) {
+      'Diaria' => (meses * 365 / 12).round(),
+      'Semanal' => (meses * 52 / 12).round(),
+      'Quincenal' => meses * 2,
+      'Mensual' => meses,
+      'A demanda' => 1,
+      _ => null,
+    };
+
+Future<void> nuevoContrato(BuildContext context) async {
+  final almacen = context.read<AlmacenSacor>();
+  if (almacen.clientes.isEmpty) {
+    notificar(context, 'Registre primero al cliente.', error: true);
+    return;
+  }
+  final servicios = {for (final s in _servicios) s.toLowerCase()};
+  final materiales = {for (final p in almacen.precios) if (!servicios.contains(p.tipo.toLowerCase())) p.tipo}.toList()..sort();
+  if (materiales.isEmpty) {
+    notificar(context, 'No hay tipos de material. Regístrelos en Precios por tonelada.', error: true);
+    return;
+  }
+  final hoy = DateTime.now();
+  Map<String, Object?> solicitud = const {};
+
+  final continuar = await mostrarFormulario(
+    context,
+    titulo: 'Nuevo contrato',
+    subtitulo: 'Los mismos datos que pide el sitio web. Al continuar se indican los precios por tonelada.',
+    textoGuardar: 'Continuar',
+    ancho: 680,
+    iniciales: {
+      'servicio': _servicios.first,
+      'modalidad': 'recurrente',
+      'inicio': DateTime(hoy.year, hoy.month, hoy.day + 1),
+      'materiales': <int>[],
+    },
+    campos: [
+      CampoOpciones<int>('cliente', 'Cliente', [
+        for (final c in [...almacen.clientes]..sort((a, b) => a.nombre.compareTo(b.nombre))) (c.id, c.nombre),
+      ], ancho: Ancho.completo),
+      CampoOpciones<String>('servicio', 'Tipo de servicio', [for (final s in _servicios) (s, _etiquetaServicio(s))]),
+      const CampoOpciones<String>('modalidad', 'Modalidad', [
+        ('puntual', 'Servicio puntual'),
+        ('recurrente', 'Contrato recurrente'),
+      ]),
+      const CampoTexto('lugar', 'Lugar de recolección', largo: 120),
+      const CampoTexto('destino', 'Destino',
+          obligatorio: false, largo: 70, ayuda: 'Solo para Acarreo de materiales y Específico.'),
+      CampoSeleccion('materiales', 'Tipos de material', [
+        for (var i = 0; i < materiales.length; i++) (i, materiales[i]),
+      ], obligatorio: true),
+      const CampoNumero('duracion', 'Duración del contrato (meses)',
+          obligatorio: false, minimo: 1, maximo: 36, ayuda: 'Solo contrato recurrente.'),
+      CampoOpciones<String>('frecuencia', 'Frecuencia de viajes', [for (final f in _frecuencias) (f, f)],
+          obligatorio: false, ayuda: 'Solo contrato recurrente.'),
+      const CampoFecha('inicio', 'Fecha de inicio o fecha estimada'),
+      const CampoTexto('volumen', 'Volumen aproximado', obligatorio: false, largo: 60, ayuda: 'Solo servicio puntual.'),
+      const CampoTexto('descripcion', 'Descripción', obligatorio: false, largo: 600, ancho: Ancho.completo),
+    ],
+    alGuardar: (v) async {
+      if (v['modalidad'] == 'recurrente') {
+        if (v['duracion'] == null || v['frecuencia'] == null) {
+          throw const FormatException('Un contrato recurrente necesita la duración en meses y la frecuencia.');
+        }
+        final cantidad = _estimarViajes((v['duracion']! as num).toInt(), v['frecuencia']! as String)!;
+        if (cantidad > 200) throw const FormatException('El contrato no puede tener más de 200 viajes.');
+      }
+      solicitud = v;
+    },
+  );
+  if (!continuar || !context.mounted) return;
+
+  final elegidos = [for (final i in (solicitud['materiales']! as Set<int>).toList()..sort()) materiales[i]];
+  final lugar = solicitud['lugar']! as String;
+  final servicio = solicitud['servicio']! as String;
+  final recurrente = solicitud['modalidad'] == 'recurrente';
+  final frecuenciaWeb = solicitud['frecuencia'] as String?;
+  final cantidad = recurrente ? _estimarViajes((solicitud['duracion']! as num).toInt(), frecuenciaWeb!)! : 1;
+  final frecuencia = !recurrente || frecuenciaWeb == 'A demanda' ? 'Unica' : frecuenciaWeb!;
+  final inicio = solicitud['inicio']! as DateTime;
+  Dinero? precioActual(String material) =>
+      almacen.precios.where((p) => p.tipo == material && p.lugar == lugar).firstOrNull?.precio;
+  final notas = [
+    if (recurrente) 'Duración: ${(solicitud['duracion']! as num).toInt()} mes(es), frecuencia ${frecuenciaWeb!.toLowerCase()}.',
+    if (!recurrente && solicitud['volumen'] != null) 'Volumen: ${solicitud['volumen']}.',
+    if (solicitud['descripcion'] != null) solicitud['descripcion']! as String,
+  ].join(' ');
+
+  final guardado = await mostrarFormulario(
+    context,
+    titulo: 'Precios del contrato',
+    subtitulo: '$cantidad viaje(s) desde el ${Formatos.fecha(inicio)} en $lugar. Los precios se guardan en "Precios por tonelada".',
+    textoGuardar: 'Crear contrato',
+    ancho: 520,
+    iniciales: {for (var i = 0; i < elegidos.length; i++) 'precio_$i': precioActual(elegidos[i])},
+    campos: [
+      for (var i = 0; i < elegidos.length; i++)
+        CampoDinero('precio_$i', 'Precio por tonelada · ${elegidos[i]}', ancho: Ancho.completo),
+    ],
+    alGuardar: (v) async {
+      await almacen.generarContrato({
+        'idCliente': solicitud['cliente'],
+        'tipoServicio': servicio,
+        'cantidad': cantidad,
+        'fechaInicio': Formatos.fechaIso(inicio),
+        'frecuencia': frecuencia,
+        'precios': [
+          for (var i = 0; i < elegidos.length; i++) {'tipo': elegidos[i], 'precio': (v['precio_$i']! as Dinero).toJson()},
+        ],
+        'lugar': lugar,
+        'destino': _serviciosConDestino.contains(servicio) ? solicitud['destino'] : null,
+        'observacion': notas.isEmpty ? null : notas,
+      });
+    },
+  );
+  if (guardado && context.mounted) {
+    notificar(context, 'Contrato creado con $cantidad viaje(s). El administrador técnico ya puede asignar el personal.');
   }
 }
 

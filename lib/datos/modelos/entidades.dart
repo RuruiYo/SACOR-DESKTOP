@@ -150,6 +150,7 @@ class Pesaje extends Entidad {
   double get libras => leerDecimal(json['pesoTotal']);
   String? get etapa => leerTextoOpcional(json['etapa']);
   Dinero? get precioTonelada => leerDineroOpcional(json['precioTonelada']);
+  int? get idRutaTrabajo => leerEnteroOpcional(json['idRutaTrabajo']);
 }
 
 class Ruta extends Entidad {

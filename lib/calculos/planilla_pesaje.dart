@@ -3,14 +3,13 @@ import '../nucleo/periodo.dart';
 import 'contabilidad.dart';
 
 class ColumnaPlanilla {
-  ColumnaPlanilla(this.contrato, this.precio, this.etapas);
+  ColumnaPlanilla(this.precio, this.etapas);
 
-  final Contrato contrato;
   final PrecioLugar? precio;
 
   final List<String> etapas;
 
-  String get tipo => precio?.tipo ?? 'Contrato #${contrato.id}';
+  String get tipo => precio?.tipo ?? 'Sin tipo';
 }
 
 class CeldaPlanilla {
@@ -42,22 +41,30 @@ class PlanillaPesaje {
     required List<Contrato> contratos,
     required PrecioLugar? Function(int id) precio,
     required List<Pesaje> pesajes,
+    List<PrecioLugar> precios = const [],
   }) {
     final inicio = DateTime(mes.year, mes.month, 1);
     final fin = Periodo.ultimoDiaDelMes(inicio);
 
-    final contratosPlaza = contratos.where((c) => precio(c.idPrecioLugar)?.lugar == lugar).toList()
-      ..sort((a, b) => (precio(a.idPrecioLugar)?.tipo ?? '').compareTo(precio(b.idPrecioLugar)?.tipo ?? ''));
-    final posicion = {for (var i = 0; i < contratosPlaza.length; i++) contratosPlaza[i].id: i};
+    final contratosPlaza = {for (final c in contratos) if (precio(c.idPrecioLugar)?.lugar == lugar) c.id};
+    bool dePlaza(Pesaje p) => contratosPlaza.contains(p.idContrato) || precio(p.idPrecioLugar)?.lugar == lugar;
 
     final delMes = pesajes.where((p) {
       final fecha = p.fecha;
-      return fecha != null && posicion.containsKey(p.idContrato) && !fecha.isBefore(inicio) && !fecha.isAfter(fin);
+      return fecha != null && dePlaza(p) && !fecha.isBefore(inicio) && !fecha.isAfter(fin);
     }).toList();
 
+    final idsPrecio = <int>{
+      for (final c in contratos) if (contratosPlaza.contains(c.id)) c.idPrecioLugar,
+      for (final p in precios) if (p.lugar == lugar) p.id,
+      for (final p in delMes) p.idPrecioLugar,
+    }.toList()
+      ..sort((a, b) => (precio(a)?.tipo ?? '').compareTo(precio(b)?.tipo ?? ''));
+    final posicion = {for (var i = 0; i < idsPrecio.length; i++) idsPrecio[i]: i};
+
     final columnas = [
-      for (final c in contratosPlaza)
-        ColumnaPlanilla(c, precio(c.idPrecioLugar), _etapas(delMes.where((p) => p.idContrato == c.id))),
+      for (final id in idsPrecio)
+        ColumnaPlanilla(precio(id), _etapas(delMes.where((p) => p.idPrecioLugar == id))),
     ];
 
     final filas = [
@@ -66,7 +73,7 @@ class PlanillaPesaje {
     final totales = List.generate(columnas.length, (_) => CeldaPlanilla());
 
     for (final p in delMes) {
-      final i = posicion[p.idContrato]!;
+      final i = posicion[p.idPrecioLugar]!;
       final fila = filas[p.fecha!.day - 1];
       final venta = ventaPesaje(p, precio(p.idPrecioLugar));
       fila.pesajes.add(p);

@@ -137,13 +137,6 @@ class FuenteMemoria implements FuenteDatos {
 
     final usuario = _buscar(Recurso.usuariosWeb, cotizacion['idUsuarioWeb'] as int);
     final tipoServicio = (cotizacion['tipoServicio'] as String?) ?? 'Servicio';
-    final lugar = (datos['lugar'] as String?) ?? 'Sin lugar';
-    final destino = datos['destino'] as String?;
-    final texto = destino == null || destino == lugar ? lugar : '$lugar → $destino';
-    final cantidad = datos['cantidad'] as int;
-    final inicio = DateTime.parse(datos['fechaInicio'] as String);
-    final frecuencia = datos['frecuencia'] as String;
-
     final clientes = _tablas[Recurso.clientes]!;
     final existente = clientes.where((c) => c['dui'] == usuario['dui']).firstOrNull;
     final cliente = existente ??
@@ -156,11 +149,36 @@ class FuenteMemoria implements FuenteDatos {
           'idAdministradorRegistro': datos['idAdministrador'],
         });
 
-    final precios = _tablas[Recurso.precios]!;
-    final precioExistente =
-        precios.where((p) => p['tipo'] == tipoServicio && p['lugar'] == lugar).firstOrNull;
-    final precio = precioExistente ??
-        await crear(Recurso.precios, {'tipo': tipoServicio, 'lugar': lugar, 'precio': datos['precio']});
+    final resultado = await _contratoConViajes(datos, cliente, tipoServicio, idCotizacion, 'Cotización web #$idCotizacion');
+    return {...resultado, 'clienteNuevo': existente == null};
+  }
+
+  @override
+  Future<Json> generarContrato(Json datos) async {
+    registro.add('POST servicios-contrato/generar');
+    final cliente = _buscar(Recurso.clientes, datos['idCliente'] as int);
+    return _contratoConViajes(datos, cliente, datos['tipoServicio'] as String, null, 'Contrato directo');
+  }
+
+  Future<Json> _contratoConViajes(Json datos, Json cliente, String tipoServicio, int? idCotizacion, String origen) async {
+    final lugar = (datos['lugar'] as String?) ?? 'Sin lugar';
+    final destino = datos['destino'] as String?;
+    final texto = destino == null || destino == lugar ? lugar : '$lugar → $destino';
+    final cantidad = datos['cantidad'] as int;
+    final inicio = DateTime.parse(datos['fechaInicio'] as String);
+    final frecuencia = datos['frecuencia'] as String;
+
+    final tabla = _tablas[Recurso.precios]!;
+    final precios = <Json>[];
+    for (final material in (datos['precios'] as List).cast<Json>()) {
+      final existente = tabla.where((p) => p['tipo'] == material['tipo'] && p['lugar'] == lugar).firstOrNull;
+      if (existente != null) {
+        existente['precio'] = material['precio'];
+        precios.add(existente);
+      } else {
+        precios.add(await crear(Recurso.precios, {'tipo': material['tipo'], 'lugar': lugar, 'precio': material['precio']}));
+      }
+    }
 
     final viajes = <Json>[];
     for (var i = 0; i < cantidad; i++) {
@@ -182,11 +200,11 @@ class FuenteMemoria implements FuenteDatos {
     final contrato = await crear(Recurso.contratos, {
       'idRutaTrabajo': viajes.first['idRutaTrabajo'],
       'idCliente': cliente['idCliente'],
-      'idPrecioLugar': precio['idPrecioLugar'],
+      'idPrecioLugar': precios.first['idPrecioLugar'],
       'fecha': inicio.toIso8601String().substring(0, 10),
       'tipoTransportaje': tipoServicio,
       'idCotizacion': idCotizacion,
-      'observacion': 'Cotización web #$idCotizacion: $cantidad viaje(s).',
+      'observacion': '$origen: $cantidad viaje(s).',
     });
     for (final viaje in viajes) {
       final fila = _buscar(Recurso.rutas, viaje['idRutaTrabajo'] as int);
@@ -197,10 +215,7 @@ class FuenteMemoria implements FuenteDatos {
     return {
       'idCotizacion': idCotizacion,
       'idCliente': cliente['idCliente'],
-      'clienteNuevo': existente == null,
-      'idPrecioLugar': precio['idPrecioLugar'],
-      'precioExistente': precioExistente != null,
-      'precioUsado': precio['precio'],
+      'precios': precios,
       'idServicioContrato': contrato['idServicioContrato'],
       'viajes': viajes,
       'mensaje': 'Se generaron $cantidad viaje(s).',

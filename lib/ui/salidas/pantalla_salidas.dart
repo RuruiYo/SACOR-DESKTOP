@@ -39,7 +39,7 @@ class _PantallaSalidasState extends State<PantallaSalidas> {
           alignment: Alignment.centerLeft,
           child: SegmentedButton<_Pestana>(
             segments: const [
-              ButtonSegment(value: _Pestana.salidas, label: Text('Salidas y gasolina'), icon: Icon(Icons.route_outlined)),
+              ButtonSegment(value: _Pestana.salidas, label: Text('Salidas'), icon: Icon(Icons.route_outlined)),
               ButtonSegment(value: _Pestana.camiones, label: Text('Camiones'), icon: Icon(Icons.local_shipping_outlined)),
             ],
             selected: {_pestana},
@@ -102,7 +102,7 @@ class _SalidasState extends State<_Salidas> {
       return texto.isEmpty || r.destino.toLowerCase().contains(texto);
     }).toList()
       ..sort((a, b) => (b.fecha ?? DateTime(1900)).compareTo(a.fecha ?? DateTime(1900)));
-    final gasolina = Dinero.sumar(filas.map((r) => r.gasolina));
+    final gastos = Dinero.sumar(filas.map((r) => almacen.gastosDeRuta(r.id)));
     final sinFecha = almacen.rutas.where((r) => r.fecha == null).length;
 
     return Column(
@@ -111,22 +111,22 @@ class _SalidasState extends State<_Salidas> {
         Tarjeta(
           child: ResumenCifras(cifras: [
             ('Salidas mostradas', Formatos.entero(filas.length)),
-            ('Gasolina', Formatos.usd(gasolina)),
-            ('Promedio por salida', filas.isEmpty ? '—' : Formatos.usd(Dinero(gasolina.centavos ~/ filas.length))),
+            ('Gastos de los viajes', Formatos.usd(gastos)),
+            ('Promedio por salida', filas.isEmpty ? '—' : Formatos.usd(Dinero(gastos.centavos ~/ filas.length))),
           ]),
         ),
         if (sinFecha > 0) ...[
           const SizedBox(height: 12),
           Aviso(
             tono: TonoInsignia.alerta,
-            mensaje: '$sinFecha salida(s) sin fecha en el destino: su gasolina no entra en ningún mes. '
+            mensaje: '$sinFecha salida(s) sin fecha en el destino: no entran en ningún mes. '
                 'Elija "Todas" en el filtro de mes para verlas y editarlas.',
           ),
         ],
         const SizedBox(height: 16),
         Tarjeta(
           titulo: 'Salidas',
-          subtitulo: 'Cada salida es un día de trabajo en un lugar: quiénes van y cuánto llevan para gasolina.',
+          subtitulo: 'Cada salida es un día de trabajo en un lugar y el personal que va. Los gastos los registra el técnico desde el móvil.',
           acciones: [
             if (_contrato != null)
               OutlinedButton.icon(
@@ -134,11 +134,6 @@ class _SalidasState extends State<_Salidas> {
                 icon: const Icon(Icons.group_add_outlined, size: 18),
                 label: const Text('Asignar a todos los viajes'),
               ),
-            FilledButton.icon(
-              onPressed: () => formularioSalida(context, null),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Nueva salida'),
-            ),
           ],
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -174,7 +169,6 @@ class _SalidasState extends State<_Salidas> {
                         ? Text(r.tipo ?? '—')
                         : CeldaDoble(r.tipo ?? '—', nombreContrato(r.idContrato!)),
                   ),
-                  ColumnaTabla(titulo: 'Gasolina', numerica: true, celda: (r) => Text(Formatos.usd(r.gasolina))),
                   ColumnaTabla(
                     titulo: 'Gastos del viaje',
                     numerica: true,
@@ -239,12 +233,10 @@ Future<void> formularioSalida(BuildContext context, Ruta? ruta) async {
       'fecha': ruta == null ? hoy : ruta.fecha,
       'destino': ruta?.destino,
       'tipo': ruta?.tipo ?? (ruta == null ? 'Recolección' : null),
-      'gasolina': ruta?.gasolina,
       'personal': personal,
     },
     campos: [
       const CampoFecha('fecha', 'Fecha'),
-      const CampoDinero('gasolina', 'Dinero para gasolina', permitirCero: true),
       CampoTexto('destino', 'Destino', largo: 185, ancho: Ancho.completo, sugerencias: destinos),
       const CampoTexto('tipo', 'Tipo', obligatorio: false, largo: 60, sugerencias: ['Recolección', 'Viaje extra', 'Mantenimiento']),
       CampoSeleccion('personal', 'Personal que va', [for (final e in empleados) (e.id, '${e.nombre} (${e.tipoVisible})')]),
@@ -252,7 +244,6 @@ Future<void> formularioSalida(BuildContext context, Ruta? ruta) async {
     alGuardar: (v) async {
       final datos = {
         'destino': TextoFechado.escribir(v['fecha'] as DateTime?, v['destino']! as String),
-        'dineroGasolina': (v['gasolina']! as Dinero).toJson(),
         'tipo': v['tipo'],
       };
       final elegidos = v['personal']! as Set<int>;

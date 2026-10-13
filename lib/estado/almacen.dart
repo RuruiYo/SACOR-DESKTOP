@@ -189,15 +189,25 @@ class AlmacenSacor extends ChangeNotifier {
     return contrato == null ? [] : viajesDeContrato(contrato.id);
   }
 
+  Future<Json> generarContrato(Json datos) async {
+    final resultado = await fuente.generarContrato({...datos, 'idAdministrador': idUsuario});
+    await _recargarContratos();
+    return resultado;
+  }
+
   Future<Json> generarViajesCotizacion(int idCotizacion, Json datos) async {
     final resultado = await fuente.generarViajesCotizacion(idCotizacion, {...datos, 'idAdministrador': idUsuario});
+    await _recargarContratos();
+    return resultado;
+  }
+
+  Future<void> _recargarContratos() async {
     const recargar = [Recurso.rutas, Recurso.clientes, Recurso.precios, Recurso.contratos];
     final tablas = await Future.wait(recargar.map(fuente.listar));
     for (var i = 0; i < recargar.length; i++) {
       _poner(recargar[i], tablas[i]);
     }
     notifyListeners();
-    return resultado;
   }
 
   Future<void> asignarPersonalRuta(int idRuta, Set<int> empleados) async {

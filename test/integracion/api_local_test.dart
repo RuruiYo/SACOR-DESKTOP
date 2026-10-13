@@ -342,6 +342,9 @@ class _ConReintento implements FuenteDatos {
       _intentar(() => _fuente.generarViajesCotizacion(idCotizacion, datos));
 
   @override
+  Future<Json> generarContrato(Json datos) => _intentar(() => _fuente.generarContrato(datos));
+
+  @override
   Future<void> registrarAuditoria(NuevaAuditoria registro) => _intentar(() => _fuente.registrarAuditoria(registro));
 
   @override

@@ -14,7 +14,6 @@ import '../../estado/periodo_estado.dart';
 import '../../estado/sesion_estado.dart';
 import '../../exportacion/tabla_reporte.dart';
 import '../../nucleo/colores.dart';
-import '../../nucleo/dinero.dart';
 import '../../nucleo/formatos.dart';
 import '../comunes/boton_exportar.dart';
 import '../comunes/controles.dart';
@@ -82,6 +81,7 @@ class _PantallaPesajeState extends State<PantallaPesaje> {
       mes: _mes,
       contratos: almacen.contratos,
       precio: almacen.precio,
+      precios: almacen.precios,
       pesajes: _tecnico == null ? almacen.pesajes : almacen.pesajes.where((p) => p.idTecnico == _tecnico).toList(),
     );
     final tecnicoActual = _tecnico ?? tecnicoPorDefecto(almacen, plaza);
@@ -117,11 +117,6 @@ class _PantallaPesajeState extends State<PantallaPesaje> {
                 alCambiar: (id) => setState(() => _tecnico = id),
               ),
               const SizedBox(width: 4),
-              FilledButton.icon(
-                onPressed: () => formularioPesaje(context, plaza: plaza, fecha: _fechaSugerida(), tecnico: tecnicoActual),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Agregar pesaje'),
-              ),
               BotonExportar(generar: () => _reporte(context, planilla)),
             ],
           ),
@@ -151,11 +146,6 @@ class _PantallaPesajeState extends State<PantallaPesaje> {
         _ResumenPlazas(mes: _mes, plazas: plazas),
       ],
     );
-  }
-
-  DateTime _fechaSugerida() {
-    final hoy = context.read<PeriodoEstado>().hoy;
-    return hoy.year == _mes.year && hoy.month == _mes.month ? hoy : _mes;
   }
 
   Future<void> mostrarDialogo(BuildContext context, String plaza, DateTime dia, int? tecnico, {int? soloTecnico}) =>
@@ -238,69 +228,113 @@ Future<void> formularioPesaje(
 }) async {
   final almacen = context.read<AlmacenSacor>();
   final usuario = context.read<SesionEstado>().usuario!;
-  final contratos = almacen.contratos.where((c) => almacen.precio(c.idPrecioLugar)?.lugar == plaza).toList()
-    ..sort((a, b) => (almacen.precio(a.idPrecioLugar)?.tipo ?? '').compareTo(almacen.precio(b.idPrecioLugar)?.tipo ?? ''));
+  final dia = pesaje?.fecha ?? fecha;
+  final contratos = almacen.contratos.where((c) => almacen.precio(c.idPrecioLugar)?.lugar == plaza).toList();
+  final idsContrato = {for (final c in contratos) c.id};
 
-  final tecnicos = _tecnicos(almacen);
-  final idTecnico = pesaje?.idTecnico ?? tecnico;
-  if (idTecnico != null && !tecnicos.any((t) => t.id == idTecnico)) {
-    final actual = almacen.empleado(idTecnico);
-    if (actual != null) tecnicos.add(actual);
+  final materiales = almacen.precios.where((p) => p.lugar == plaza).toList();
+  if (pesaje != null && !materiales.any((m) => m.id == pesaje.idPrecioLugar)) {
+    final actual = almacen.precio(pesaje.idPrecioLugar);
+    if (actual != null) materiales.add(actual);
+  }
+  materiales.sort((a, b) => a.tipo.compareTo(b.tipo));
+
+  final viajes = almacen.rutas
+      .where((r) => r.idContrato != null && idsContrato.contains(r.idContrato) && r.fecha == dia)
+      .where((r) => pesaje?.idRutaTrabajo == null || r.id == pesaje!.idRutaTrabajo)
+      .toList();
+
+  final asignados = <(int, int), String>{};
+  for (final viaje in viajes) {
+    for (final id in almacen.personalDeRuta(viaje.id)) {
+      final empleado = almacen.empleado(id);
+      if (empleado == null || empleado.tipo != 'Tecnico') continue;
+      asignados[(viaje.id, id)] = viajes.length == 1
+          ? empleado.nombre
+          : '${empleado.nombre} · ${almacen.nombreCliente(almacen.contrato(viaje.idContrato!)?.idCliente ?? 0)}';
+    }
+  }
+  if (viajes.isEmpty) {
+    for (final t in _tecnicos(almacen)) {
+      asignados[(0, t.id)] = t.nombre;
+    }
+  }
+  if (pesaje != null && !asignados.keys.any((k) => k.$2 == pesaje.idTecnico)) {
+    asignados[(pesaje.idRutaTrabajo ?? 0, pesaje.idTecnico)] = almacen.nombreEmpleado(pesaje.idTecnico);
   }
 
-  final etapas = <String>{
-    '4ta Etapa',
-    '1ra Etapa',
-    for (final p in almacen.pesajes)
-      if (p.etapa != null && contratos.any((c) => c.id == p.idContrato)) p.etapa!,
-  }.toList();
+  if (materiales.isEmpty) {
+    notificar(context, 'No hay precios por tonelada para $plaza. Regístrelos en Clientes y contratos.', error: true);
+    return;
+  }
+  if (asignados.isEmpty) {
+    notificar(
+      context,
+      'El viaje del ${Formatos.fecha(dia)} no tiene técnico asignado. Asígnelo en Salidas o desde el móvil.',
+      error: true,
+    );
+    return;
+  }
+
+  final idTecnico = pesaje?.idTecnico ?? tecnico;
+  final tecnicoInicial = asignados.length == 1
+      ? asignados.keys.first
+      : asignados.keys.where((k) => k.$2 == idTecnico).firstOrNull;
+  final elegirContrato = viajes.isEmpty && pesaje == null && contratos.length > 1;
 
   final guardado = await mostrarFormulario(
     context,
     titulo: pesaje == null ? 'Agregar pesaje' : 'Editar pesaje',
-    subtitulo: plaza,
+    subtitulo: '$plaza · ${Formatos.fecha(dia)}',
     iniciales: {
-      'contrato': pesaje?.idContrato ?? (contratos.length == 1 ? contratos.first.id : null),
-      'fecha': pesaje?.fecha ?? fecha,
+      'material': pesaje?.idPrecioLugar ?? (materiales.length == 1 ? materiales.first.id : null),
       'libras': pesaje?.libras,
-      'etapa': pesaje?.etapa,
-      'tecnico': idTecnico,
+      'tecnico': tecnicoInicial,
+      'contrato': null,
     },
     campos: [
-      CampoOpciones<int>('contrato', 'Tipo de desecho', [
-        for (final c in contratos)
-          (c.id, '${almacen.precio(c.idPrecioLugar)?.tipo} · ${Formatos.usd(almacen.precio(c.idPrecioLugar)?.precio ?? const Dinero.cero())}/t'),
+      CampoOpciones<int>('material', 'Material', [
+        for (final m in materiales) (m.id, '${m.tipo} · ${Formatos.usd(m.precio)}/t'),
       ]),
-      const CampoFecha('fecha', 'Fecha'),
       const CampoNumero('libras', 'Peso', decimales: 2, minimo: 0.01, maximo: 100000, sufijo: 'lb'),
-      CampoTexto('etapa', 'Etapa', obligatorio: false, largo: 60, sugerencias: etapas, ayuda: 'Solo si la plaza se pesa por etapas.'),
-      CampoOpciones<int>('tecnico', 'Técnico responsable', [for (final t in tecnicos) (t.id, '${t.nombre} (${t.tipoVisible})')],
-          ancho: Ancho.completo),
+      if (elegirContrato)
+        CampoOpciones<int>('contrato', 'Contrato', [
+          for (final c in contratos) (c.id, '${almacen.nombreCliente(c.idCliente)} · contrato #${c.id}'),
+        ], ancho: Ancho.completo),
+      CampoOpciones<(int, int)>(
+        'tecnico',
+        'Técnico del viaje',
+        [for (final e in asignados.entries) (e.key, e.value)],
+        ancho: Ancho.completo,
+        ayuda: viajes.isEmpty ? 'No hay viaje programado este día en $plaza.' : null,
+      ),
     ],
     alGuardar: (v) async {
-      final contrato = almacen.contrato(v['contrato']! as int)!;
+      final (idRuta, idElegido) = v['tecnico']! as (int, int);
+      final idPrecio = v['material']! as int;
+      final idContrato = idRuta != 0
+          ? almacen.rutas.firstWhere((r) => r.id == idRuta).idContrato!
+          : (v['contrato'] as int?) ?? pesaje?.idContrato ?? contratos.first.id;
       final datos = {
-        'idServicioContrato': contrato.id,
+        'idServicioContrato': idContrato,
         'idEmpleadoSubio': pesaje?.idEmpleadoSubio ?? usuario.id,
-        'idTecnicoTransporte': v['tecnico'],
-        'idPrecioLugar': contrato.idPrecioLugar,
-        'fecha': fechaJson(v['fecha']! as DateTime),
+        'idTecnicoTransporte': idElegido,
+        'idPrecioLugar': idPrecio,
+        'idRutaTrabajo': idRuta == 0 ? pesaje?.idRutaTrabajo : idRuta,
+        'fecha': fechaJson(dia),
         'pesoTotal': v['libras'],
-        'etapa': v['etapa'],
       };
       if (pesaje == null) {
-        await almacen.crear(Recurso.pesajes, {...datos, 'precioTonelada': almacen.precio(contrato.idPrecioLugar)?.precio.toJson()},
+        await almacen.crear(Recurso.pesajes, {...datos, 'precioTonelada': almacen.precio(idPrecio)?.precio.toJson()},
             detalle: 'Pesaje registrado');
       } else {
-        final mismoPrecio = pesaje.idPrecioLugar == contrato.idPrecioLugar && pesaje.precioTonelada != null;
+        final mismoPrecio = pesaje.idPrecioLugar == idPrecio && pesaje.precioTonelada != null;
         await almacen.actualizar(
           Recurso.pesajes,
           pesaje,
           pesaje.con({
             ...datos,
-            'precioTonelada': mismoPrecio
-                ? pesaje.precioTonelada!.toJson()
-                : almacen.precio(contrato.idPrecioLugar)?.precio.toJson(),
+            'precioTonelada': mismoPrecio ? pesaje.precioTonelada!.toJson() : almacen.precio(idPrecio)?.precio.toJson(),
           }),
           detalle: 'Pesaje editado',
         );
@@ -428,7 +462,7 @@ class _DialogoDia extends StatelessWidget {
         if (almacen.precio(c.idPrecioLugar)?.lugar == plaza) c.id: c,
     };
     final pesajes = almacen.pesajes
-        .where((p) => contratos.containsKey(p.idContrato) && p.fecha == dia)
+        .where((p) => (contratos.containsKey(p.idContrato) || almacen.precio(p.idPrecioLugar)?.lugar == plaza) && p.fecha == dia)
         .where((p) => soloTecnico == null || p.idTecnico == soloTecnico)
         .toList()
       ..sort((a, b) => (almacen.precio(a.idPrecioLugar)?.tipo ?? '').compareTo(almacen.precio(b.idPrecioLugar)?.tipo ?? ''));
@@ -442,8 +476,7 @@ class _DialogoDia extends StatelessWidget {
         filas: pesajes,
         mensajeVacio: 'No hay pesajes este día.',
         columnas: [
-          ColumnaTabla(titulo: 'Tipo', celda: (p) => Text(almacen.precio(p.idPrecioLugar)?.tipo ?? '—')),
-          ColumnaTabla(titulo: 'Etapa', celda: (p) => Text(p.etapa ?? '—')),
+          ColumnaTabla(titulo: 'Material', celda: (p) => Text(almacen.precio(p.idPrecioLugar)?.tipo ?? '—')),
           ColumnaTabla(titulo: 'Libras', numerica: true, celda: (p) => Text(_libras.format(p.libras))),
           ColumnaTabla(titulo: 'Toneladas', numerica: true, celda: (p) => Text(_toneladas.format(toneladas(p.libras)))),
           ColumnaTabla(
@@ -490,7 +523,12 @@ class _ResumenPlazas extends StatelessWidget {
     final planillas = [
       for (final p in plazas)
         PlanillaPesaje.armar(
-            lugar: p, mes: mes, contratos: almacen.contratos, precio: almacen.precio, pesajes: almacen.pesajes),
+            lugar: p,
+            mes: mes,
+            contratos: almacen.contratos,
+            precio: almacen.precio,
+            precios: almacen.precios,
+            pesajes: almacen.pesajes),
     ];
     final tipos = {for (final p in planillas) ...p.columnas.map((c) => c.tipo)}.toList()..sort();
     double toneladasDe(PlanillaPesaje p, String tipo) {

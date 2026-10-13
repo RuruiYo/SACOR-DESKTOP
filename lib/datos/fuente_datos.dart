@@ -18,6 +18,8 @@ abstract class FuenteDatos {
 
   Future<Json> generarViajesCotizacion(int idCotizacion, Json datos);
 
+  Future<Json> generarContrato(Json datos);
+
   Future<void> registrarAuditoria(NuevaAuditoria registro);
 
   Future<PaginaAuditoria> consultarAuditoria({required int pagina, required int tamano, String? tabla});
@@ -65,6 +67,10 @@ class FuenteApi implements FuenteDatos {
   @override
   Future<Json> generarViajesCotizacion(int idCotizacion, Json datos) async =>
       (await _api.post('/api/cotizaciones/$idCotizacion/generar-viajes', datos)) as Json;
+
+  @override
+  Future<Json> generarContrato(Json datos) async =>
+      (await _api.post('/api/servicios-contrato/generar', datos)) as Json;
 
   @override
   Future<void> registrarAuditoria(NuevaAuditoria registro) => _api.post('/api/auditoria', registro.aJson());
