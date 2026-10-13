@@ -14,6 +14,7 @@ import '../../estado/periodo_estado.dart';
 import '../../estado/sesion_estado.dart';
 import '../../exportacion/tabla_reporte.dart';
 import '../../nucleo/colores.dart';
+import '../../nucleo/dinero.dart';
 import '../../nucleo/formatos.dart';
 import '../comunes/boton_exportar.dart';
 import '../comunes/controles.dart';
@@ -28,6 +29,8 @@ final _toneladas = NumberFormat('#,##0.00', 'en_US');
 String formatoLibras(double valor) => valor == 0 ? '—' : _libras.format(valor);
 String formatoToneladas(double valor) => valor == 0 ? '—' : _toneladas.format(valor);
 String formatoVenta(double valor) => valor == 0 ? '—' : Formatos.usd(aDinero(valor));
+String _precioPromedio(CeldaPlanilla celda) =>
+    celda.toneladas == 0 ? '—' : Formatos.usd(aDinero(celda.venta / celda.toneladas));
 
 class PantallaPesaje extends StatefulWidget {
   const PantallaPesaje({super.key});
@@ -157,23 +160,19 @@ class _PantallaPesajeState extends State<PantallaPesaje> {
   TablaReporte _reporte(BuildContext context, PlanillaPesaje planilla) {
     final columnas = <ColumnaReporte>[const ColumnaReporte('Fecha', TipoColumna.fecha)];
     for (final c in planilla.columnas) {
-      for (final e in c.etapas) {
-        columnas.add(ColumnaReporte('${c.tipo} $e (lb)', TipoColumna.decimal));
-      }
       columnas
         ..add(ColumnaReporte('${c.tipo} (lb)', TipoColumna.decimal))
         ..add(ColumnaReporte('${c.tipo} (t)', TipoColumna.decimal))
-        ..add(ColumnaReporte('${c.tipo} \$/t', TipoColumna.dinero))
+        ..add(ColumnaReporte('${c.tipo} precio/t', TipoColumna.dinero))
         ..add(ColumnaReporte('${c.tipo} total', TipoColumna.dinero));
     }
     columnas.add(const ColumnaReporte('Total del día', TipoColumna.dinero));
 
     List<Object?> celdas(List<CeldaPlanilla> fila) => [
           for (var i = 0; i < planilla.columnas.length; i++) ...[
-            for (final e in planilla.columnas[i].etapas) fila[i].librasPorEtapa[e] ?? 0.0,
             fila[i].libras,
             fila[i].toneladas,
-            planilla.columnas[i].precio?.precio,
+            fila[i].toneladas == 0 ? null : aDinero(fila[i].venta / fila[i].toneladas),
             aDinero(fila[i].venta),
           ],
         ];
@@ -397,16 +396,6 @@ class _CuadroPesaje extends StatelessWidget {
 
     for (var i = 0; i < planilla.columnas.length; i++) {
       final columna = planilla.columnas[i];
-      final precio = columna.precio == null ? '' : ' ${Formatos.usd(columna.precio!.precio)}/t';
-      for (final etapa in columna.etapas) {
-        columnas.add(ColumnaTabla(
-          titulo: '${columna.tipo} $etapa',
-          numerica: true,
-          anchoMinimo: 100,
-          celda: (f) => Text(formatoLibras(f.celdas[i].librasPorEtapa[etapa] ?? 0)),
-        ));
-        pie.add(Text(formatoLibras(planilla.totales[i].librasPorEtapa[etapa] ?? 0)));
-      }
       columnas.addAll([
         ColumnaTabla(
           titulo: '${columna.tipo} lb',
@@ -421,15 +410,22 @@ class _CuadroPesaje extends StatelessWidget {
           celda: (f) => Text(formatoToneladas(f.celdas[i].toneladas)),
         ),
         ColumnaTabla(
-          titulo: 'Total$precio',
+          titulo: 'Precio / t',
           numerica: true,
-          anchoMinimo: 110,
+          anchoMinimo: 90,
+          celda: (f) => Text(_precioPromedio(f.celdas[i])),
+        ),
+        ColumnaTabla(
+          titulo: 'Total',
+          numerica: true,
+          anchoMinimo: 100,
           celda: (f) => Text(formatoVenta(f.celdas[i].venta)),
         ),
       ]);
       pie.addAll([
         Text(formatoLibras(planilla.totales[i].libras)),
         Text(formatoToneladas(planilla.totales[i].toneladas)),
+        Text(_precioPromedio(planilla.totales[i])),
         Text(formatoVenta(planilla.totales[i].venta)),
       ]);
     }
@@ -480,7 +476,12 @@ class _DialogoDia extends StatelessWidget {
           ColumnaTabla(titulo: 'Libras', numerica: true, celda: (p) => Text(_libras.format(p.libras))),
           ColumnaTabla(titulo: 'Toneladas', numerica: true, celda: (p) => Text(_toneladas.format(toneladas(p.libras)))),
           ColumnaTabla(
-            titulo: 'Venta',
+            titulo: 'Precio / t',
+            numerica: true,
+            celda: (p) => Text(Formatos.usd(p.precioTonelada ?? almacen.precio(p.idPrecioLugar)?.precio ?? const Dinero.cero())),
+          ),
+          ColumnaTabla(
+            titulo: 'Total',
             numerica: true,
             celda: (p) => Text(Formatos.usd(aDinero(ventaPesaje(p, almacen.precio(p.idPrecioLugar))))),
           ),
