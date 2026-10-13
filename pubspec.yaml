@@ -1,0 +1,33 @@
+name: sacor_desktop
+description: "SACOR Desktop - administrador contable"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  flutter_localizations:
+    sdk: flutter
+  provider: ^6.1.5+1
+  http: ^1.6.0
+  fl_chart: ^1.2.0
+  intl: ^0.20.3
+  file_selector: ^1.1.0
+  pdf: ^3.12.0
+  excel: ^4.0.6
+  web: ^1.1.1
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+
+  uses-material-design: true

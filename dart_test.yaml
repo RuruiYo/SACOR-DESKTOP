@@ -1,0 +1,5 @@
+tags:
+  capturas:
+    skip: "Capturas de diseño. Generar con: flutter test --tags capturas --run-skipped --update-goldens test/capturas"
+  api:
+    skip: "Contra la API local. Correr con: flutter test --tags api --run-skipped test/integracion"
