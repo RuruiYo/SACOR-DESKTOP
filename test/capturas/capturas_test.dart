@@ -51,7 +51,6 @@ void main() {
         llaveApi: '',
         modoDemo: true,
         origen: 'captura',
-        carpetaDte: Directory.systemTemp.path,
       ),
       fuente: FuenteMemoria(semillaDemo(hoy)),
       reloj: () => hoy,
@@ -145,12 +144,6 @@ void main() {
     await abrir(tester, tamano: const Size(1440, 900));
     await ir(tester, 'Viajes extra');
     await capturar(tester, '12_viajes');
-  });
-
-  testWidgets('dte', (tester) async {
-    await abrir(tester, tamano: const Size(1440, 900));
-    await ir(tester, 'DTE');
-    await capturar(tester, '13_dte');
   });
 
   testWidgets('solicitudes web', (tester) async {

@@ -1,7 +1,6 @@
 ﻿param(
     [string]$ApiUrl = 'http://localhost:5084',
     [string]$ApiKey = '',
-    [string]$NitEmpresa = '',
     [switch]$Demo
 )
 
@@ -21,7 +20,6 @@ if ($LASTEXITCODE -ne 0) { throw 'La compilación falló.' }
 
 $salida = 'build\windows\x64\runner\Release'
 $config = [ordered]@{ apiUrl = $ApiUrl; apiKey = $ApiKey; modoDemo = $Demo.IsPresent }
-if ($NitEmpresa) { $config.nitEmpresa = $NitEmpresa }
 $config | ConvertTo-Json | Out-File -Encoding utf8 (Join-Path $salida 'sacor_config.json')
 
 foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {

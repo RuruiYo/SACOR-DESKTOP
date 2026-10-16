@@ -10,14 +10,12 @@ class LogoSacor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icono = Container(
+    final icono = Image.asset(
+      'assets/logo_sacor.png',
       width: tamano,
       height: tamano,
-      decoration: BoxDecoration(
-        color: ColoresSacor.verde,
-        borderRadius: BorderRadius.circular(tamano * 0.28),
-      ),
-      child: Icon(Icons.eco_outlined, color: ColoresSacor.blanco, size: tamano * 0.58),
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.medium,
     );
 
     if (!mostrarTexto) return icono;

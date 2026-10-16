@@ -6,8 +6,6 @@ class Configuracion {
     required this.llaveApi,
     required this.modoDemo,
     required this.origen,
-    this.carpetaDte,
-    this.nitEmpresa,
   });
 
   static const _urlCompilacion = String.fromEnvironment('SACOR_API_URL', defaultValue: 'http://localhost:5084');
@@ -22,10 +20,6 @@ class Configuracion {
 
   final String origen;
 
-  final String? carpetaDte;
-
-  final String? nitEmpresa;
-
   bool get tieneLlave => llaveApi.isNotEmpty;
 
   static Future<Configuracion> cargar() async {
@@ -33,8 +27,6 @@ class Configuracion {
     var llave = _llaveCompilacion;
     var demo = _demoCompilacion;
     var origen = 'valores de compilación';
-    String? carpetaDte;
-    String? nitEmpresa;
 
     final archivo = await leerConfiguracionExterna();
     if (archivo != null) {
@@ -45,8 +37,6 @@ class Configuracion {
 
       url = texto('apiUrl') ?? url;
       llave = texto('apiKey') ?? llave;
-      carpetaDte = texto('carpetaDte');
-      nitEmpresa = texto('nitEmpresa');
       final demoArchivo = archivo['modoDemo'];
       if (demoArchivo is bool) demo = demoArchivo;
       origen = archivo['_origen'] as String? ?? 'archivo de configuración';
@@ -57,8 +47,6 @@ class Configuracion {
       llaveApi: llave,
       modoDemo: demo,
       origen: origen,
-      carpetaDte: carpetaDte,
-      nitEmpresa: nitEmpresa,
     );
   }
 }

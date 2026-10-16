@@ -24,7 +24,6 @@ el header `X-Api-Key`, y `/api/auditoria`. Requiere la columna `ruta_trabajo.id_
 | Viajes extra | Viajes fuera del contrato, con su personal. |
 | Solicitudes web | Cotizaciones y postulaciones que la gente envía desde el sitio web (las guarda la web en `cotizacion` y `solicitud_puesto_trabajo`). Cotizaciones: cambiar estado (Pendiente, En revisión, Cotizada, Aprobada, Rechazada, Cerrada), quien la cambia queda como analista. Postulaciones: marcar como atendida (queda el administrador como analista). Ambas: eliminar y "Escribir por WhatsApp" con un saludo ya escrito. Experiencia, municipio, licencia y mensaje de una postulación llegan solo por WhatsApp: la web no los guarda. |
 | Viajes de cotizaciones | En una cotización **Aprobada**, "Generar viajes" crea las salidas (una por viaje, con fecha según la frecuencia), el cliente, el precio y el contrato llamando a `POST /api/cotizaciones/{id}/generar-viajes`. En Salidas y camiones, el filtro "Cotización web" muestra esos viajes y "Asignar a todos los viajes" pone el mismo personal en todos. |
-| DTE | Lee los JSON de DTE (formato de Hacienda) que se guardan en `Documentos\SACOR\DTE`: tipo, número de control, emisor, receptor, gravado, IVA, total; IVA crédito y débito. **No envía nada a la API** (la base no tiene tabla de DTE). |
 | Auditoría | Historial de `auditoria`. La app registra ahí cada alta, edición y baja (sin copiar el código del empleado). |
 
 Planilla, cuadro de pesaje, servicios externos y movimiento contable se exportan a **Excel, PDF y CSV**.
@@ -129,18 +128,9 @@ Para entregar la app en otras PC: `.\herramientas\compilar_windows.ps1 -ApiUrl "
 {
   "apiUrl": "https://api-sacor.ejemplo.com",
   "apiKey": "valor de Seguridad:ApiKeys:AppEscritorio",
-  "nitEmpresa": "0614-000000-000-0",
-  "carpetaDte": "D:\\SACOR\\DTE",
   "modoDemo": false
 }
 ```
-
-`nitEmpresa` separa los DTE emitidos (ventas) de los recibidos.
-
-Carpeta de DTE: en cada computadora se usa, en este orden, (1) la que el usuario eligió en la pantalla
-DTE con **"Cambiar carpeta…"** (queda guardada para ese usuario de Windows en
-`%APPDATA%\SACOR\preferencias.json`), (2) `carpetaDte` de `sacor_config.json`, o (3) la carpeta
-Documentos de ese usuario + `SACOR\DTE`, que la app crea si no existe.
 
 `sacor_config.json` lleva la llave de la API: no lo suba a git (ya está en `.gitignore`) ni lo comparta
 fuera de SACOR.
@@ -184,7 +174,6 @@ lib/
   calculos/       contabilidad (ventas, gastos, ganancia) y planilla de pesaje
   configuracion/  sacor_config.json y valores de compilación
   datos/          cliente HTTP, recursos de la API, modelos y datos de demostración
-  dte/            lectura de los JSON de DTE
   estado/         almacén de datos, sesión, período y navegación (Provider)
   exportacion/    CSV, Excel y PDF
   nucleo/         dinero, formatos, períodos, fecha dentro del texto, tema

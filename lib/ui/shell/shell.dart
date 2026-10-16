@@ -7,7 +7,6 @@ import '../../estado/sesion_estado.dart';
 import '../auditoria/pantalla_auditoria.dart';
 import '../clientes/pantalla_clientes.dart';
 import '../comunes/estado_vista.dart';
-import '../dte/pantalla_dte.dart';
 import '../empleados/pantalla_empleados.dart';
 import '../movimiento/pantalla_movimiento.dart';
 import '../pesaje/pantalla_pesaje.dart';
@@ -95,7 +94,6 @@ class _Contenido extends StatelessWidget {
       Seccion.salidas => const PantallaSalidas(),
       Seccion.viajesExtra => const PantallaViajes(),
       Seccion.solicitudesWeb => const PantallaSolicitudesWeb(),
-      Seccion.dte => const PantallaDte(),
       Seccion.auditoria => const PantallaAuditoria(),
     };
 

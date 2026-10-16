@@ -69,7 +69,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const LogoSacor(tamano: 44),
+                      const LogoSacor(tamano: 64),
                       const SizedBox(height: 32),
                       const Text(
                         'Iniciar sesión',

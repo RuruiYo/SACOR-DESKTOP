@@ -32,7 +32,7 @@ class BarraLateral extends StatelessWidget {
             padding: EdgeInsets.fromLTRB(compacta ? 20 : 20, 20, 12, 24),
             child: Align(
               alignment: compacta ? Alignment.center : Alignment.centerLeft,
-              child: LogoSacor(mostrarTexto: !compacta),
+              child: LogoSacor(tamano: 44, mostrarTexto: !compacta),
             ),
           ),
           Expanded(

@@ -139,7 +139,6 @@ class _PantallaViajesState extends State<PantallaViajes> {
         'camion': viaje?.idCamion,
         'precio': viaje?.precio,
         'cantidad': viaje?.cantidad ?? 1,
-        'pago': viaje?.pago,
         'personal': personal,
       },
       campos: [
@@ -152,21 +151,18 @@ class _PantallaViajesState extends State<PantallaViajes> {
         CampoOpciones<int>('camion', 'Camión', [for (final c in almacen.camiones) (c.id, c.descripcion)]),
         const CampoDinero('precio', 'Precio por viaje'),
         const CampoNumero('cantidad', 'Cantidad de viajes', minimo: 1, maximo: 100000),
-        const CampoDinero('pago', 'Pago recibido', obligatorio: false, permitirCero: true,
-            ayuda: 'Si se deja vacío: precio × cantidad.'),
         CampoSeleccion('personal', 'Personal del viaje', [for (final e in empleados) (e.id, '${e.nombre} (${e.tipoVisible})')]),
       ],
       alGuardar: (v) async {
         final precio = v['precio']! as Dinero;
         final cantidad = v['cantidad']! as int;
-        final pago = v['pago'] as Dinero?;
         final datos = {
           'idCliente': v['cliente'],
           'idCamion': v['camion'],
           'tipo': TextoFechado.escribir(v['mes'] as DateTime?, v['tipo']! as String, soloMes: true),
           'precio': precio.toJson(),
           'cantidad': cantidad,
-          'pagoMonto': (pago == null || pago.esCero ? precio.multiplicar(cantidad) : pago).toJson(),
+          'pagoMonto': precio.multiplicar(cantidad).toJson(),
         };
         final elegidos = v['personal']! as Set<int>;
         if (viaje == null) {

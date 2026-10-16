@@ -7,10 +7,8 @@ import '../../datos/recurso.dart';
 import '../../estado/almacen.dart';
 import '../../estado/navegacion_estado.dart';
 import '../../estado/periodo_estado.dart';
-import '../../estado/sesion_estado.dart';
 import '../../nucleo/dinero.dart';
 import '../../nucleo/formatos.dart';
-import '../../nucleo/texto_fechado.dart';
 import '../comunes/controles.dart';
 import '../comunes/formulario.dart';
 import '../comunes/insignia.dart';
@@ -120,7 +118,7 @@ class _SalidasState extends State<_Salidas> {
           Aviso(
             tono: TonoInsignia.alerta,
             mensaje: '$sinFecha salida(s) sin fecha en el destino: no entran en ningún mes. '
-                'Elija "Todas" en el filtro de mes para verlas y editarlas.',
+                'Elija "Todas" en el filtro de mes para verlas.',
           ),
         ],
         const SizedBox(height: 16),
@@ -189,7 +187,6 @@ class _SalidasState extends State<_Salidas> {
                     titulo: '',
                     anchoMinimo: 96,
                     celda: (r) => AccionesFila(
-                      alEditar: () => formularioSalida(context, r),
                       alEliminar: () => eliminarConConfirmacion(
                         context,
                         que: 'la salida a ${r.destino}',
@@ -211,53 +208,6 @@ class _SalidasState extends State<_Salidas> {
       ],
     );
   }
-}
-
-Future<void> formularioSalida(BuildContext context, Ruta? ruta) async {
-  final almacen = context.read<AlmacenSacor>();
-  final usuario = context.read<SesionEstado>().usuario!;
-  final hoy = context.read<PeriodoEstado>().hoy;
-  final destinos = <String>{
-    for (final p in almacen.precios) p.lugar,
-    for (final r in almacen.rutas) r.destino,
-  }.toList()
-    ..sort();
-  final personal = ruta == null ? <int>[] : almacen.personalDeRuta(ruta.id);
-  final empleados = almacen.empleados.where((e) => e.activo || personal.contains(e.id)).toList()
-    ..sort((a, b) => a.nombre.compareTo(b.nombre));
-
-  final guardado = await mostrarFormulario(
-    context,
-    titulo: ruta == null ? 'Nueva salida' : 'Editar salida',
-    iniciales: {
-      'fecha': ruta == null ? hoy : ruta.fecha,
-      'destino': ruta?.destino,
-      'tipo': ruta?.tipo ?? (ruta == null ? 'Recolección' : null),
-      'personal': personal,
-    },
-    campos: [
-      const CampoFecha('fecha', 'Fecha'),
-      CampoTexto('destino', 'Destino', largo: 185, ancho: Ancho.completo, sugerencias: destinos),
-      const CampoTexto('tipo', 'Tipo', obligatorio: false, largo: 60, sugerencias: ['Recolección', 'Viaje extra', 'Mantenimiento']),
-      CampoSeleccion('personal', 'Personal que va', [for (final e in empleados) (e.id, '${e.nombre} (${e.tipoVisible})')]),
-    ],
-    alGuardar: (v) async {
-      final datos = {
-        'destino': TextoFechado.escribir(v['fecha'] as DateTime?, v['destino']! as String),
-        'tipo': v['tipo'],
-      };
-      final elegidos = v['personal']! as Set<int>;
-      if (ruta == null) {
-        final creada = await almacen.crear(Recurso.rutas, {...datos, 'idAdministrador': usuario.id},
-            detalle: 'Salida registrada');
-        await almacen.asignarPersonalRuta(creada[Recurso.rutas.campoId] as int, elegidos);
-      } else {
-        await almacen.actualizar(Recurso.rutas, ruta, ruta.con(datos), detalle: 'Salida editada');
-        await almacen.asignarPersonalRuta(ruta.id, elegidos);
-      }
-    },
-  );
-  if (guardado && context.mounted) notificar(context, ruta == null ? 'Salida registrada.' : 'Salida actualizada.');
 }
 
 Future<void> asignarPersonalContrato(BuildContext context, int idContrato) async {

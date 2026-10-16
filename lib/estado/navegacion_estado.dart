@@ -13,7 +13,6 @@ enum Seccion {
   viajesExtra('Viajes extra', 'Viajes extra', Icons.alt_route_outlined, Icons.alt_route, 'Registros'),
   solicitudesWeb('Solicitudes web', 'Cotizaciones y postulaciones de la web', Icons.language_outlined, Icons.language,
       'Sitio web'),
-  dte('DTE', 'Documentos tributarios (DTE)', Icons.receipt_long_outlined, Icons.receipt_long, 'Control'),
   auditoria('Auditoría', 'Auditoría de cambios', Icons.history_outlined, Icons.history, 'Control');
 
   const Seccion(this.menu, this.titulo, this.icono, this.iconoActivo, this.grupo, {this.usaPeriodo = false});

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -13,15 +11,11 @@ import 'package:sacor_desktop/estado/navegacion_estado.dart';
 
 void main() {
   final hoy = DateTime(2026, 10, 11);
-  late Directory carpetaDte;
 
   setUpAll(() async {
     Intl.defaultLocale = 'es';
     await initializeDateFormatting('es');
-    carpetaDte = await Directory.systemTemp.createTemp('sacor_dte_');
   });
-
-  tearDownAll(() => carpetaDte.delete(recursive: true));
 
   Future<FuenteMemoria> abrirApp(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
@@ -35,7 +29,6 @@ void main() {
         llaveApi: '',
         modoDemo: true,
         origen: 'prueba',
-        carpetaDte: carpetaDte.path,
       ),
       fuente: fuente,
       reloj: () => hoy,
